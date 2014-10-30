@@ -582,8 +582,12 @@ nextFile:
 			}
 		}()
 
+		if debug {
+			l.Debugln("Handling", state.file.Name, "at", state.tempName, "checksum:", checksum)
+		}
+
 		hasher := sha256.New()
-		for _, block := range state.blocks {
+		for idx, block := range state.blocks {
 			buf = buf[:int(block.Size)]
 			found := p.model.finder.Iterate(block.Hash, func(folder, file string, index uint32) bool {
 				path := filepath.Join(p.model.folderCfgs[folder].Path, file)
@@ -611,6 +615,9 @@ nextFile:
 					hasher.Write(buf)
 					hash := hasher.Sum(nil)
 					hasher.Reset()
+					if debug {
+						l.Debugln("Indexing block", idx, "expecting", block.Hash, "got", hash)
+					}
 					if !bytes.Equal(hash, block.Hash) {
 						if debug {
 							l.Debugf("Finder block mismatch in %s:%s:%d expected %q got %q", folder, file, index, block.Hash, hash)
@@ -638,6 +645,9 @@ nextFile:
 			}
 
 			if !found {
+				if debug {
+					l.Debugln("Pulling", idx, block.Hash)
+				}
 				state.pullStarted()
 				ps := pullBlockState{
 					sharedPullerState: state.sharedPullerState,
@@ -645,6 +655,9 @@ nextFile:
 				}
 				pullChan <- ps
 			} else {
+				if debug {
+					l.Debugln("Copying", idx, block.Hash)
+				}
 				state.copyDone()
 			}
 		}
