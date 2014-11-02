@@ -646,7 +646,7 @@ nextFile:
 
 			if !found {
 				if debug {
-					l.Debugln("Pulling", idx, block.Hash, state.file.Name)
+					l.Debugln("Pulling - ", idx, block.Hash, state.file.Name)
 				}
 				state.pullStarted()
 				ps := pullBlockState{
@@ -656,7 +656,7 @@ nextFile:
 				pullChan <- ps
 			} else {
 				if debug {
-					l.Debugln("Copying", idx, block.Hash, state.file.Name)
+					l.Debugln("Copying - ", idx, block.Hash, state.file.Name)
 				}
 				state.copyDone()
 			}
