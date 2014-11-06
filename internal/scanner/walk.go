@@ -101,7 +101,6 @@ func (w *Walker) walkAndHashFiles(fchan chan protocol.FileInfo) filepath.WalkFun
 			}
 			return nil
 		}
-
 		if rn == "." {
 			return nil
 		}
@@ -136,6 +135,9 @@ func (w *Walker) walkAndHashFiles(fchan chan protocol.FileInfo) filepath.WalkFun
 				cf := w.CurrentFiler.CurrentFile(rn)
 				permUnchanged := w.IgnorePerms || !protocol.HasPermissionBits(cf.Flags) || PermsEqual(cf.Flags, uint32(info.Mode()))
 				if !protocol.IsDeleted(cf.Flags) && protocol.IsDirectory(cf.Flags) && permUnchanged {
+					if debug {
+						l.Debugln("rescan skipping dir", cf.Name, cf.Flags, info.Mode()&os.ModePerm)
+					}
 					return nil
 				}
 			}
@@ -164,6 +166,9 @@ func (w *Walker) walkAndHashFiles(fchan chan protocol.FileInfo) filepath.WalkFun
 				cf := w.CurrentFiler.CurrentFile(rn)
 				permUnchanged := w.IgnorePerms || !protocol.HasPermissionBits(cf.Flags) || PermsEqual(cf.Flags, uint32(info.Mode()))
 				if !protocol.IsDeleted(cf.Flags) && cf.Modified == info.ModTime().Unix() && permUnchanged {
+					if debug {
+						l.Debugln("rescan skipping file", cf.Name, cf.Flags, cf.Modified, info.Mode()&os.ModePerm, info.ModTime().Unix())
+					}
 					return nil
 				}
 

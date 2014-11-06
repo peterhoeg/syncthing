@@ -17,6 +17,7 @@ package model
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -667,12 +668,34 @@ func (m *Model) Request(deviceID protocol.DeviceID, folder, name string, offset 
 		return nil, ErrNoSuchFile
 	}
 
-	if debug && deviceID != protocol.LocalDeviceID {
-		l.Debugf("%v REQ(in): %s: %q / %q o=%d s=%d", m, deviceID, folder, name, offset, size)
-	}
 	m.fmut.RLock()
 	fn := filepath.Join(m.folderCfgs[folder].Path, name)
 	m.fmut.RUnlock()
+
+	var indexHash []byte
+	if debug && deviceID != protocol.LocalDeviceID {
+		l.Debugf("%v REQ(in): %s: %q / %q o=%d s=%d", m, deviceID, folder, name, offset, size)
+		scanner.PopulateOffsets(lf.Blocks)
+		for _, block := range lf.Blocks {
+			if block.Offset == offset {
+				indexHash = block.Hash
+				goto CarryOn
+			}
+		}
+		rblk, err := scanner.HashFile(fn, protocol.BlockSize)
+		if err == nil {
+			l.Debugln("ABDBG COULD NOT FIND MATCHING BLOCK FOR:", folder, name, offset, size)
+			l.Debugf("ABDBG INDEX DUMP: %#v", lf)
+			l.Debugf("ABDBG FILE DUMP: %#v", rblk)
+
+		} else {
+			l.Debugln("ABDBG FAILED TO HASH EXISTING FILE")
+		}
+
+	}
+
+CarryOn:
+
 	fd, err := os.Open(fn) // XXX: Inefficient, should cache fd?
 	if err != nil {
 		return nil, err
@@ -685,6 +708,21 @@ func (m *Model) Request(deviceID protocol.DeviceID, folder, name string, offset 
 		return nil, err
 	}
 
+	var contentMtime int64
+	var contentFlags uint32
+	fi, err := fd.Stat()
+	if err == nil {
+		contentMtime = fi.ModTime().Unix()
+		contentFlags = uint32(fi.Mode() & os.ModePerm)
+	}
+
+	hasher := sha256.New()
+	hasher.Write(buf)
+	contentHash := hasher.Sum(nil)
+
+	if debug {
+		l.Debugf("%v RESP(in): %s: %q / %q o=%d s=%d ch=%x ct=%d cf=%d ih=%x it=%d if=%d", m, deviceID, folder, name, offset, size, contentHash, contentMtime, contentFlags, indexHash, lf.Modified, lf.Flags)
+	}
 	return buf, nil
 }
 
