@@ -40,6 +40,8 @@ import (
 	"github.com/syncthing/syncthing/internal/scanner"
 	"github.com/syncthing/syncthing/internal/stats"
 	"github.com/syncthing/syncthing/internal/versioner"
+
+	"github.com/AudriusButkevicius/lrufdcache"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -84,6 +86,7 @@ type Model struct {
 	cfg    *config.ConfigWrapper
 	db     *leveldb.DB
 	finder *files.BlockFinder
+	cache  *lrufdcache.FileCache
 
 	deviceName    string
 	clientName    string
@@ -123,6 +126,7 @@ func NewModel(cfg *config.ConfigWrapper, deviceName, clientName, clientVersion s
 	m := &Model{
 		cfg:                cfg,
 		db:                 db,
+		cache:              lrufdcache.NewCache(25),
 		deviceName:         deviceName,
 		clientName:         clientName,
 		clientVersion:      clientVersion,
@@ -675,7 +679,8 @@ func (m *Model) Request(deviceID protocol.DeviceID, folder, name string, offset 
 	m.fmut.RLock()
 	fn := filepath.Join(m.folderCfgs[folder].Path, name)
 	m.fmut.RUnlock()
-	fd, err := os.Open(fn) // XXX: Inefficient, should cache fd?
+
+	fd, err := m.cache.Open(fn)
 	if err != nil {
 		return nil, err
 	}
